@@ -90,7 +90,7 @@ $customers = $stmt->fetchAll(PDO::FETCH_ASSOC);
                         </div>
                         <div class="stat-item">
                             <span>Terakhir</span>
-                            <strong style="color:#8b5cf6">12 Nov</strong>
+                            <strong style="color:#8b5cf6">12 November</strong>
                         </div>
                     </div>
                 </div>
