@@ -8,153 +8,123 @@ $products = $pdo->query("SELECT * FROM products ORDER BY id DESC LIMIT 3")->fetc
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Warung Makan Bu Yeti - Premium</title>
+    <title>Warung Bu Yeti - LEGEND!</title>
     <link rel="stylesheet" href="assets/css/style.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
 </head>
 <body>
 
     <nav class="navbar">
-        <div class="container navbar-content">
+        <div class="container nav-flex">
             <a href="#" class="logo">
-                <div class="logo-icon"><i class="fas fa-utensils"></i></div>
-                <span>RestoApp</span>
+                <i class="fas fa-pepper-hot"></i> BU YETI
             </a>
-            <ul class="nav-menu">
-                <li><a href="#home" class="nav-link">Beranda</a></li>
-                <li><a href="#menu" class="nav-link">Menu</a></li>
-                <li><a href="#features" class="nav-link">Keunggulan</a></li>
-                <li><a href="#about" class="nav-link">Tentang</a></li>
-            </ul>
-            <?php if(isset($_SESSION['user'])): ?>
-                <?php $dash = ($_SESSION['user']['role']=='admin' || $_SESSION['user']['role']=='super_admin') ? 'admin/dashboard.php' : 'customer/menu.php'; ?>
-                <a href="<?= $dash ?>" class="btn-cta">Dashboard</a>
-            <?php else: ?>
-                <a href="login.php" class="btn-cta">Masuk / Daftar</a>
-            <?php endif; ?>
-        </div>
-    </nav>
-
-    <section id="home" class="hero">
-        <div class="container hero-content">
-            <div class="hero-text">
-                <div class="badge-hero"><i class="fas fa-star"></i> Restoran Pilihan Keluarga</div>
-                <h1>Nikmati Kelezatan <br> <span>Citarasa Nusantara</span></h1>
-                <p>Kami menghadirkan pengalaman kuliner terbaik dengan resep warisan turun-temurun. Bahan segar, rasa otentik, dan harga bersahabat.</p>
-                
-                <div class="hero-buttons">
-                    <a href="<?= isset($_SESSION['user']) ? 'customer/menu.php' : 'login.php' ?>" class="btn-primary-lg">
-                        Pesan Sekarang <i class="fas fa-arrow-right"></i>
-                    </a>
-                    <a href="#menu" class="btn-secondary-lg" style="
-                        padding: 16px 35px; background: white; color: #0f172a;
-                        border-radius: 99px; font-weight: 700; font-size: 16px;
-                        border: 1px solid #e2e8f0;
-                    ">Lihat Menu</a>
-                </div>
-            </div>
-            <div class="hero-image-box">
-                <img src="assets/img/ayam-geprek.png" class="hero-img" alt="Ayam Geprek" onerror="this.src='https://via.placeholder.com/400x300?text=Ayam+Geprek'">
-            </div>
-        </div>
-    </section>
-
-    <section id="features" class="features">
-        <div class="container">
-            <div class="features-grid">
-                <div class="feature-card">
-                    <div class="f-icon"><i class="fas fa-leaf"></i></div>
-                    <h3>Bahan 100% Segar</h3>
-                    <p>Kami belanja bahan baku setiap pagi langsung dari petani lokal untuk menjamin kesegaran.</p>
-                </div>
-                <div class="feature-card">
-                    <div class="f-icon"><i class="fas fa-award"></i></div>
-                    <h3>Koki Berpengalaman</h3>
-                    <p>Dimasak oleh chef profesional dengan pengalaman lebih dari 10 tahun di kuliner nusantara.</p>
-                </div>
-                <div class="feature-card">
-                    <div class="f-icon"><i class="fas fa-shipping-fast"></i></div>
-                    <h3>Pengiriman Kilat</h3>
-                    <p>Lapar? Jangan khawatir. Kurir kami siap mengantar pesanan Anda dalam waktu singkat.</p>
-                </div>
-            </div>
-        </div>
-    </section>
-
-    <section id="menu" class="section-menu">
-        <div class="container">
-            <div class="section-header">
-                <h2>Menu Favorit Minggu Ini</h2>
-                <p>Temukan hidangan yang paling banyak dipesan oleh pelanggan setia kami.</p>
-            </div>
-
-            <div class="menu-grid">
-                <?php if(count($products) > 0): ?>
-                    <?php foreach($products as $p): ?>
-                    <div class="menu-card">
-                        <div class="menu-img-box">
-                            <img src="assets/img/<?= htmlspecialchars($p['image']) ?>" class="menu-img" onerror="this.src='https://via.placeholder.com/400x300?text=Menu'">
-                        </div>
-                        <div class="menu-content">
-                            <h3 class="menu-title"><?= htmlspecialchars($p['name']) ?></h3>
-                            <p class="menu-desc"><?= htmlspecialchars($p['description']) ?></p>
-                            <span class="menu-price">Rp <?= number_format($p['price'], 0, ',', '.') ?></span>
-                            <a href="login.php" class="btn-order">Pesan Sekarang</a>
-                        </div>
-                    </div>
-                    <?php endforeach; ?>
+            <div class="nav-links">
+                <a href="#home" class="nav-link">BERANDA</a>
+                <a href="#features" class="nav-link">KENAPA KAMI?</a>
+                <a href="#menu" class="nav-link">MENU</a>
+                <?php if(isset($_SESSION['user'])): ?>
+                    <?php $dash = ($_SESSION['user']['role'] == 'admin') ? 'admin/dashboard.php' : 'customer/menu.php'; ?>
+                    <a href="<?= $dash ?>" class="btn btn-primary">DASHBOARD</a>
                 <?php else: ?>
-                    <p style="text-align:center; width:100%; color:#999;">Belum ada menu yang ditampilkan.</p>
+                    <a href="login.php" class="btn btn-primary">MASUK / DAFTAR</a>
                 <?php endif; ?>
             </div>
         </div>
+    </nav>
+
+    <header id="home" class="hero container">
+        <div class="hero-text">
+            <h1 class="animate-up">RASA OTENTIK<br><span class="highlight">WARISAN</span><br>NUSANTARA</h1>
+            <p class="animate-up delay-1">
+                Bukan sekadar makan, tapi pengalaman rasa yang bikin nagih! 
+                Bumbu rempah asli, resep rahasia turun-temurun, harga bersahabat.
+            </p>
+            <div class="animate-up delay-2" style="display: flex; gap: 15px; flex-wrap: wrap;">
+                <a href="login.php" class="btn btn-primary">PESAN SEKARANG <i class="fas fa-arrow-right"></i></a>
+                <a href="#menu" class="btn btn-secondary">LIHAT MENU</a>
+            </div>
+        </div>
+        
+        <div class="hero-img-wrapper animate-up delay-3">
+            <div class="sticker-float">
+                TERLEZAT<br>SE-CIBOGO
+            </div>
+            <img src="assets/img/wrb.jpeg" class="hero-img" alt="Ayam Bakar" 
+                 onerror="this.src='https://via.placeholder.com/600x500?text=MANTAP+JIWA'">
+        </div>
+    </header>
+
+    <div class="marquee-container">
+        <div class="marquee-content">
+            🔥 PEDASNYA NAMPOL • RESEP NENEK MOYANG • HARGA KAKI LIMA RASA BINTANG LIMA • GRATIS ES TEH HARI JUMAT • 
+            🔥 PEDASNYA NAMPOL • RESEP NENEK MOYANG • HARGA KAKI LIMA RASA BINTANG LIMA • GRATIS ES TEH HARI JUMAT •
+        </div>
+    </div>
+
+    <section id="features" class="features">
+        <div class="container features-grid">
+            <div class="feature-card">
+                <i class="fas fa-fire f-icon"></i>
+                <h3>PEDAS GILA</h3>
+                <p>Sambal dadakan yang dibuat fresh setiap hari. Siap-siap keringetan!</p>
+            </div>
+            <div class="feature-card">
+                <i class="fas fa-wallet f-icon"></i>
+                <h3>MURAH MERIAH</h3>
+                <p>Makan enak gak perlu mahal. Harga pas di kantong pelajar dan mahasiswa.</p>
+            </div>
+            <div class="feature-card">
+                <i class="fas fa-motorcycle f-icon"></i>
+                <h3>KIRIM CEPAT</h3>
+                <p>Laper? Pesan lewat web, kurir kami langsung meluncur ke tempatmu.</p>
+            </div>
+        </div>
     </section>
 
-    <section id="about" class="about">
-        <div class="container">
-            <div class="about-container">
-                <div class="about-info">
-                    <h3>Tentang Warung Bu Yeti</h3>
-                    <p>Berawal dari warung kecil di tahun 2010, kini kami telah melayani ribuan pelanggan dengan cita rasa yang konsisten. Kami percaya bahwa makanan enak bisa menyatukan semua orang.</p>
-                    
-                    <div class="info-item">
-                        <div class="i-icon"><i class="fas fa-map-marker-alt"></i></div>
-                        <div class="i-text">Jl. Kebon Jeruk No. 12, Jakarta Selatan</div>
+    <section id="menu" class="menu-section container">
+        <div class="section-header">
+            <div class="section-title">MENU TERFAVORIT</div>
+        </div>
+
+        <div class="menu-grid">
+            <?php if(count($products) > 0): ?>
+                <?php foreach($products as $p): ?>
+                <div class="menu-card">
+                    <div class="menu-img-box">
+                        <img src="assets/img/<?= htmlspecialchars($p['image']) ?>" 
+                             onerror="this.src='https://via.placeholder.com/400x300?text=Menu+Enak'">
                     </div>
-                    <div class="info-item">
-                        <div class="i-icon"><i class="fas fa-clock"></i></div>
-                        <div class="i-text">Buka Setiap Hari: 08.00 - 22.00 WIB</div>
-                    </div>
-                    <div class="info-item">
-                        <div class="i-icon"><i class="fas fa-phone-alt"></i></div>
-                        <div class="i-text">Hubungi Kami: 0812-3456-7890</div>
-                    </div>
-                </div>
-                <div class="map-view">
-                    <div style="text-align:center; color:#94a3b8;">
-                        <i class="fas fa-map-marked-alt" style="font-size:80px; margin-bottom:20px;"></i><br>
-                        <span style="font-weight:700; font-size:20px;">Peta Lokasi Google Maps</span>
+                    <div class="menu-info">
+                        <div class="menu-name"><?= htmlspecialchars($p['name']) ?></div>
+                        <div><span class="menu-price">Rp <?= number_format($p['price'], 0, ',', '.') ?></span></div>
+                        <p style="color:#555; font-size:14px; margin-bottom:20px; font-weight:600;"><?= htmlspecialchars($p['description']) ?></p>
+                        <a href="login.php" class="btn btn-primary" style="width:100%;">PESAN SEKARANG</a>
                     </div>
                 </div>
-            </div>
+                <?php endforeach; ?>
+            <?php else: ?>
+                <p style="text-align:center; font-weight:bold; width:100%;">Belum ada menu yang ditampilkan.</p>
+            <?php endif; ?>
+        </div>
+        
+        <div style="text-align:center; margin-top:50px;">
+            <a href="login.php" class="btn btn-secondary" style="font-size:18px;">LIHAT SEMUA MENU &rarr;</a>
         </div>
     </section>
 
     <footer>
         <div class="container">
-            <div class="footer-main">
-                <span class="footer-logo">Warung Bu Yeti</span>
-                <div class="footer-nav">
-                    <a href="#home">Beranda</a>
-                    <a href="#menu">Menu</a>
-                    <a href="#features">Layanan</a>
-                    <a href="#about">Kontak</a>
-                </div>
-                <p style="color:#64748b; max-width:600px; margin:0 auto;">Menyajikan kebahagiaan melalui hidangan lezat sejak 2010. Terima kasih telah menjadi bagian dari perjalanan kami.</p>
+            <span class="footer-logo">WARUNG BU YETI</span>
+            <p style="margin-bottom:30px; font-size:18px;">Jl. Cibogo</p>
+            
+            <div style="display:flex; justify-content:center; gap:20px; margin-bottom:40px;">
+                <a href="#" style="font-size:24px; color:var(--yellow);"><i class="fab fa-instagram"></i></a>
+                <a href="#" style="font-size:24px; color:var(--yellow);"><i class="fab fa-facebook"></i></a>
+                <a href="#" style="font-size:24px; color:var(--yellow);"><i class="fab fa-whatsapp"></i></a>
             </div>
-            <div class="copyright">
-                &copy; 2025 RestoApp System. All Rights Reserved.
-            </div>
+
+            <p style="font-weight:bold;">&copy; 2025 RestoApp System • All Rights Reserved.</p>
         </div>
     </footer>
 

@@ -1,192 +1,172 @@
 <?php
 session_start();
-// 1. Cek Login Admin
-if (!isset($_SESSION['user']) || $_SESSION['user']['role'] !== 'admin') {
-    header("Location: ../index.php");
+// Cek Login
+if (!isset($_SESSION['user']) || ($_SESSION['user']['role'] !== 'admin' && $_SESSION['user']['role'] !== 'super_admin')) {
+    header("Location: ../login.php");
     exit;
 }
 include '../includes/db.php';
 
-// --- LOGIKA 1: UPDATE STATUS PESANAN (Ini yang memperbaiki error) ---
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_status'])) {
-    $order_id = $_POST['order_id'];
+// --- LOGIKA UPDATE STATUS ---
+// (Sekarang dipicu oleh hidden input 'update_status')
+if (isset($_POST['update_status'])) {
+    $oid = $_POST['order_id'];
     $new_status = $_POST['status'];
-    
-    // Update ke database
-    $stmt = $pdo->prepare("UPDATE orders SET order_status = ? WHERE id = ?");
-    if ($stmt->execute([$new_status, $order_id])) {
-        // Refresh halaman agar data terupdate
-        header("Location: orders.php");
-        exit;
-    } else {
-        echo "<script>alert('Gagal mengubah status');</script>";
+
+    // Ambil status lama & data produk untuk manajemen stok
+    $cek = $pdo->prepare("SELECT order_status FROM orders WHERE id = ?");
+    $cek->execute([$oid]);
+    $old_status = $cek->fetchColumn();
+
+    $items = $pdo->prepare("SELECT product_id, quantity FROM order_items WHERE order_id = ?");
+    $items->execute([$oid]);
+    $products = $items->fetchAll(PDO::FETCH_ASSOC);
+
+    // Logika Balikin Stok jika Batal
+    if ($old_status != 'Dibatalkan' && $new_status == 'Dibatalkan') {
+        foreach ($products as $p) { $pdo->prepare("UPDATE products SET stock = stock + ? WHERE id = ?")->execute([$p['quantity'], $p['product_id']]); }
+    } elseif ($old_status == 'Dibatalkan' && $new_status != 'Dibatalkan') {
+        foreach ($products as $p) { $pdo->prepare("UPDATE products SET stock = stock - ? WHERE id = ?")->execute([$p['quantity'], $p['product_id']]); }
     }
+
+    // Simpan Perubahan
+    $stmt = $pdo->prepare("UPDATE orders SET order_status = ? WHERE id = ?");
+    $stmt->execute([$new_status, $oid]);
+    
+    // Refresh halaman
+    header("Location: orders.php"); exit;
 }
 
-// --- LOGIKA 2: FILTER STATUS (Tab Menu) ---
-$status_filter = $_GET['status'] ?? 'Semua';
-$sql = "SELECT o.*, u.fullname FROM orders o JOIN users u ON o.user_id = u.id";
-
-if ($status_filter !== 'Semua') {
-    $sql .= " WHERE o.order_status = :status";
-}
-$sql .= " ORDER BY o.order_date DESC";
-
-$stmt = $pdo->prepare($sql);
-if ($status_filter !== 'Semua') {
-    $stmt->bindParam(':status', $status_filter);
-}
-$stmt->execute();
-$orders = $stmt->fetchAll(PDO::FETCH_ASSOC);
-
-// Hitung Statistik untuk Kartu Atas
-$cntTotal = $pdo->query("SELECT COUNT(*) FROM orders")->fetchColumn();
-$cntMenunggu = $pdo->query("SELECT COUNT(*) FROM orders WHERE order_status='Menunggu'")->fetchColumn();
-$cntDiproses = $pdo->query("SELECT COUNT(*) FROM orders WHERE order_status='Diproses'")->fetchColumn();
+$sql = "SELECT o.*, u.fullname FROM orders o JOIN users u ON o.user_id = u.id ORDER BY o.order_date DESC";
+$orders = $pdo->query($sql)->fetchAll(PDO::FETCH_ASSOC);
 ?>
-
 <!DOCTYPE html>
 <html lang="id">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Admin - Pesanan</title>
-    <link href="../assets/css/admin.css" rel="stylesheet" />
+    <title>Kelola Pesanan - Admin</title>
+    <link rel="stylesheet" href="../assets/css/style.css">
+    <link rel="stylesheet" href="../assets/css/admin.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <style>
-        /* CSS Khusus Dropdown Status agar Modern */
-        .status-select {
-            padding: 8px 12px;
-            border-radius: 8px;
-            border: 1px solid #e2e8f0;
-            background-color: white;
-            font-size: 13px;
-            font-weight: 600;
-            color: #4a5568;
-            cursor: pointer;
-            outline: none;
-            transition: all 0.3s;
-        }
-        .status-select:hover { border-color: #a29bfe; }
-        .status-select:focus { border-color: #6c5ce7; box-shadow: 0 0 0 3px rgba(108, 92, 231, 0.1); }
+        /* STEPPER VISUAL */
+        .admin-stepper { display: flex; align-items: center; gap: 5px; margin-bottom: 5px; }
+        .step-dot { width: 20px; height: 20px; border: 2px solid black; border-radius: 50%; background: #eee; display: flex; align-items: center; justify-content: center; font-size: 9px; color: #999; transition: 0.3s; }
+        .step-line { flex: 1; height: 3px; background: #ddd; border: 1px solid black; min-width: 10px; }
         
-        /* Warna Text Status di Table */
-        .badge-text { font-weight: 700; font-size: 12px; padding: 5px 10px; border-radius: 20px; }
-        .badge-text.menunggu { background: #fff3cd; color: #d97706; }
-        .badge-text.diproses { background: #e0e7ff; color: #4f46e5; }
-        .badge-text.selesai { background: #d1fae5; color: #059669; }
-        .badge-text.dibatalkan { background: #fee2e2; color: #dc2626; }
+        /* WARNA STATUS */
+        .s-wait { background: #ffeaa7; color: black; transform: scale(1.1); border-color: black; }
+        .s-conf { background: #fab1a0; color: black; transform: scale(1.1); border-color: black; }
+        .s-cook { background: #74b9ff; color: black; transform: scale(1.1); border-color: black; }
+        .s-done { background: #55efc4; color: black; transform: scale(1.1); border-color: black; }
+        .l-fill { background: black; }
+
+        .cancelled-badge { background: #ff7675; color: white; padding: 5px 10px; border: 2px solid black; font-weight: 900; font-size: 12px; display: inline-block; transform: rotate(-2deg); }
+
+        /* CUSTOM SELECT (DROPDOWN KEREN) */
+        .status-select {
+            border: 3px solid black; 
+            padding: 8px 10px; 
+            font-weight: 900; 
+            width: 100%; 
+            cursor: pointer;
+            font-family: 'Chakra Petch', sans-serif;
+            background-color: white;
+            outline: none;
+            transition: 0.2s;
+        }
+        .status-select:hover { background-color: var(--yellow); }
+        .status-select:focus { box-shadow: 4px 4px 0 black; }
     </style>
 </head>
 <body>
-<div class="admin-wrapper">
-    
     <nav class="admin-sidebar">
-        <div class="logo-area"><i class="fas fa-utensils"></i> <h2>RestoApp</h2></div>
-        <ul>
-            <li><a href="dashboard.php"><i class="fas fa-chart-pie"></i> Dashboard</a></li>
-            <li><a href="products.php"><i class="fas fa-hamburger"></i> Produk</a></li>
-            <li><a href="orders.php" class="active active-purple"><i class="fas fa-receipt"></i> Pesanan</a></li>
-            <li><a href="customer.php"><i class="fas fa-users"></i> Pelanggan</a></li>
+        <div class="admin-logo">ADMIN MODE</div>
+        <ul class="sidebar-menu">
+            <li><a href="dashboard.php" class="sidebar-link"><i class="fas fa-fire"></i> DASHBOARD</a></li>
+            <li><a href="products.php" class="sidebar-link"><i class="fas fa-hamburger"></i> PRODUK</a></li>
+            <li><a href="orders.php" class="sidebar-link active"><i class="fas fa-receipt"></i> PESANAN</a></li>
+            <li><a href="customer.php" class="sidebar-link"><i class="fas fa-users"></i> PELANGGAN</a></li>
+            <li><a href="reports.php" class="sidebar-link"><i class="fas fa-file-invoice-dollar"></i> LAPORAN</a></li>
+            <li><a href="users.php" class="sidebar-link"><i class="fas fa-user-shield"></i> ADMIN</a></li>
+            <li><a href="logout.php" class="sidebar-link" style="background:#000; color:#fff;"><i class="fas fa-sign-out-alt"></i> KELUAR</a></li>
         </ul>
     </nav>
 
-    <main>
-        <div class="topbar">
-            <div class="page-header">
-                <h1>Pesanan Masuk</h1>
-                <p>Kelola status pesanan pelanggan secara realtime</p>
-            </div>
-            <div class="user-info">
-                <div class="notif-btn"><i class="far fa-bell"></i><span class="notif-badge"></span></div>
-                <div class="profile-card">
-                    <div class="profile-info"><span class="profile-name"><?= htmlspecialchars($_SESSION['user']['fullname']) ?></span><span class="profile-role">Admin</span></div>
-                    <img src="https://ui-avatars.com/api/?name=<?= urlencode($_SESSION['user']['fullname']) ?>&background=6c5ce7&color=fff" class="profile-img">
-                </div>
-            </div>
-        </div>
-
-        <section class="stats-grid">
-            <div class="stat-card blue">
-                <i class="fas fa-clipboard-list bg-icon"></i>
-                <h3>Total Pesanan</h3>
-                <div class="value"><?= $cntTotal ?></div>
-            </div>
-            <div class="stat-card orange">
-                <i class="fas fa-clock bg-icon"></i>
-                <h3>Menunggu</h3>
-                <div class="value"><?= $cntMenunggu ?></div>
-            </div>
-            <div class="stat-card purple">
-                <i class="fas fa-cog bg-icon"></i>
-                <h3>Diproses</h3>
-                <div class="value"><?= $cntDiproses ?></div>
-            </div>
-        </section>
-
-        <div class="filter-tabs">
-            <a href="?status=Semua" class="<?= $status_filter=='Semua'?'active':'' ?>">Semua</a>
-            <a href="?status=Menunggu" class="<?= $status_filter=='Menunggu'?'active':'' ?>">Menunggu</a>
-            <a href="?status=Diproses" class="<?= $status_filter=='Diproses'?'active':'' ?>">Diproses</a>
-            <a href="?status=Selesai" class="<?= $status_filter=='Selesai'?'active':'' ?>">Selesai</a>
+    <main class="main-content">
+        <div class="page-header">
+            <div class="page-title"><h1>DAFTAR PESANAN MASUK</h1></div>
         </div>
 
         <div class="table-container">
-            <table width="100%">
+            <table>
                 <thead>
                     <tr>
-                        <th>ID Pesanan</th>
-                        <th>Pelanggan</th>
-                        <th>Total</th>
-                        <th>Pembayaran</th>
-                        <th>Status Saat Ini</th>
-                        <th>Ubah Status</th>
+                        <th>#ID</th>
+                        <th>PELANGGAN</th>
+                        <th>TOTAL</th>
+                        <th>METODE</th>
+                        <th width="280">PROSES PESANAN (4 TAHAP)</th>
+                        <th width="180">UPDATE STATUS</th>
                     </tr>
                 </thead>
                 <tbody>
-                    <?php if(count($orders) > 0): ?>
-                        <?php foreach ($orders as $o): ?>
-                        <tr>
-                            <td>
-                                <strong>#<?= $o['order_id'] ?></strong><br>
-                                <small style="color:#aaa"><?= date('d M Y H:i', strtotime($o['order_date'])) ?></small>
-                            </td>
-                            <td><?= htmlspecialchars($o['fullname']) ?></td>
-                            <td style="color:#10b981; font-weight:700;">Rp <?= number_format($o['total'], 0, ',', '.') ?></td>
-                            <td>
-                                <i class="<?= $o['payment_method'] == 'Cash' ? 'fas fa-money-bill-wave' : 'fas fa-qrcode' ?>"></i> 
-                                <?= $o['payment_method'] ?>
-                            </td>
-                            <td>
-                                <span class="badge-text <?= strtolower($o['order_status']) ?>">
-                                    <?= $o['order_status'] ?>
-                                </span>
-                            </td>
-                            <td>
-                                <form method="POST">
-                                    <input type="hidden" name="update_status" value="1">
-                                    <input type="hidden" name="order_id" value="<?= $o['id'] ?>">
-                                    
-                                    <select name="status" class="status-select" onchange="this.form.submit()">
-                                        <option value="Menunggu" <?= $o['order_status']=='Menunggu'?'selected':'' ?>>Menunggu</option>
-                                        <option value="Diproses" <?= $o['order_status']=='Diproses'?'selected':'' ?>>Diproses</option>
-                                        <option value="Selesai" <?= $o['order_status']=='Selesai'?'selected':'' ?>>Selesai</option>
-                                        <option value="Dibatalkan" <?= $o['order_status']=='Dibatalkan'?'selected':'' ?>>Dibatalkan</option>
-                                    </select>
-                                </form>
-                            </td>
-                        </tr>
-                        <?php endforeach; ?>
-                    <?php else: ?>
-                        <tr>
-                            <td colspan="6" style="text-align:center; padding:30px; color:#999;">Tidak ada data pesanan.</td>
-                        </tr>
-                    <?php endif; ?>
+                    <?php foreach($orders as $o): ?>
+                    <tr>
+                        <td><strong>#<?= $o['id'] ?></strong></td>
+                        <td>
+                            <span style="font-weight:bold; font-size:16px;"><?= htmlspecialchars($o['fullname']) ?></span><br>
+                            <small style="color:#555;"><?= date('d/m H:i', strtotime($o['order_date'])) ?></small>
+                        </td>
+                        <td style="font-weight:900;">Rp <?= number_format($o['total'],0,',','.') ?></td>
+                        <td><span class="badge badge-yellow"><?= $o['payment_method'] ?></span></td>
+                        
+                        <td>
+                            <?php if($o['order_status'] == 'Dibatalkan'): ?>
+                                <div class="cancelled-badge">🚫 DIBATALKAN</div>
+                            <?php else: ?>
+                                <?php 
+                                    $s1=$s2=$s3=$s4=''; $l1=$l2=$l3=''; 
+                                    $status = $o['order_status'];
+                                    if($status=='Menunggu') { $s1='s-wait'; }
+                                    if($status=='Konfirmasi') { $s1='s-wait'; $l1='l-fill'; $s2='s-conf'; }
+                                    if($status=='Diproses') { $s1='s-wait'; $l1='l-fill'; $s2='s-conf'; $l2='l-fill'; $s3='s-cook'; }
+                                    if($status=='Selesai') { $s1='s-wait'; $l1='l-fill'; $s2='s-conf'; $l2='l-fill'; $s3='s-cook'; $l3='l-fill'; $s4='s-done'; }
+                                ?>
+                                <div class="admin-stepper">
+                                    <div class="step-dot <?= $s1 ?>" title="Menunggu"><i class="fas fa-clock"></i></div>
+                                    <div class="step-line <?= $l1 ?>"></div>
+                                    <div class="step-dot <?= $s2 ?>" title="Konfirmasi"><i class="fas fa-thumbs-up"></i></div>
+                                    <div class="step-line <?= $l2 ?>"></div>
+                                    <div class="step-dot <?= $s3 ?>" title="Diproses"><i class="fas fa-fire"></i></div>
+                                    <div class="step-line <?= $l3 ?>"></div>
+                                    <div class="step-dot <?= $s4 ?>" title="Selesai"><i class="fas fa-check"></i></div>
+                                </div>
+                                <div style="font-family:'Archivo Black'; font-size:11px; margin-top:5px;">
+                                    <?= strtoupper($o['order_status']) ?>
+                                </div>
+                            <?php endif; ?>
+                        </td>
+
+                        <td>
+                            <form method="POST">
+                                <input type="hidden" name="update_status" value="1">
+                                <input type="hidden" name="order_id" value="<?= $o['id'] ?>">
+                                
+                                <select name="status" class="status-select" onchange="this.form.submit()">
+                                    <option value="Menunggu" <?= $o['order_status']=='Menunggu'?'selected':'' ?>>⏳ MENUNGGU</option>
+                                    <option value="Konfirmasi" <?= $o['order_status']=='Konfirmasi'?'selected':'' ?>>👍 CONFIRM</option>
+                                    <option value="Diproses" <?= $o['order_status']=='Diproses'?'selected':'' ?>>🔥 MASAK</option>
+                                    <option value="Selesai" <?= $o['order_status']=='Selesai'?'selected':'' ?>>✅ SELESAI</option>
+                                    <option value="Dibatalkan" <?= $o['order_status']=='Dibatalkan'?'selected':'' ?>>❌ BATAL</option>
+                                </select>
+                            </form>
+                        </td>
+                    </tr>
+                    <?php endforeach; ?>
                 </tbody>
             </table>
         </div>
-
     </main>
-</div>
 </body>
 </html>
+<?php

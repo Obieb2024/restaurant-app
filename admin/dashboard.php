@@ -1,153 +1,309 @@
 <?php
 session_start();
-if (!isset($_SESSION['user']) || $_SESSION['user']['role'] !== 'admin') {
-    header('Location: ../index.php');
+// Cek Login: Izinkan admin DAN super_admin
+if (!isset($_SESSION['user']) || ($_SESSION['user']['role'] !== 'admin' && $_SESSION['user']['role'] !== 'super_admin')) {
+    header('Location: ../login.php');
     exit;
 }
-
 include '../includes/db.php';
 
-// --- QUERY DATA DASHBOARD ---
-$totalIncome = $pdo->query("SELECT SUM(total) FROM orders WHERE payment_status='Lunas'")->fetchColumn() ?? 0;
-$totalOrders = $pdo->query("SELECT COUNT(*) FROM orders")->fetchColumn();
-$avgOrder = $pdo->query("SELECT AVG(total) FROM orders")->fetchColumn() ?? 0;
-$totalCustomers = $pdo->query("SELECT COUNT(*) FROM users WHERE role='customer'")->fetchColumn();
+// --- 1. DATA KARTU STATISTIK (REAL-TIME) ---
+// Menghitung pesanan yang TIDAK dibatalkan
+$income = $pdo->query("SELECT SUM(total) FROM orders WHERE order_status != 'Dibatalkan'")->fetchColumn() ?? 0;
+$orderCount = $pdo->query("SELECT COUNT(*) FROM orders")->fetchColumn();
+$productCount = $pdo->query("SELECT COUNT(*) FROM products")->fetchColumn();
+$customerCount = $pdo->query("SELECT COUNT(*) FROM users WHERE role='customer'")->fetchColumn();
 
-// --- QUERY KHUSUS NOTIFIKASI (Pesanan Menunggu) ---
-$stmtNotif = $pdo->query("SELECT * FROM orders WHERE order_status = 'Menunggu' ORDER BY order_date DESC LIMIT 5");
-$notifItems = $stmtNotif->fetchAll(PDO::FETCH_ASSOC);
-$notifCount = count($notifItems); // Hitung jumlah notifikasi
+// --- 2. DATA GRAFIK 1: PENJUALAN HARIAN (7 Hari Terakhir) ---
+$chartQuery = $pdo->query("
+    SELECT DATE_FORMAT(order_date, '%d %b') as tanggal, SUM(total) as omzet 
+    FROM orders 
+    WHERE order_status != 'Dibatalkan' 
+    AND order_date >= DATE(NOW()) - INTERVAL 7 DAY
+    GROUP BY DATE(order_date)
+    ORDER BY order_date ASC
+");
+$chartData = $chartQuery->fetchAll(PDO::FETCH_ASSOC);
+$lbl_sales = []; $dat_sales = [];
+foreach($chartData as $d) { $lbl_sales[] = $d['tanggal']; $dat_sales[] = $d['omzet']; }
+
+// --- 3. DATA GRAFIK 2: METODE PEMBAYARAN ---
+$payQuery = $pdo->query("SELECT payment_method, COUNT(*) as jumlah FROM orders GROUP BY payment_method");
+$payData = $payQuery->fetchAll(PDO::FETCH_ASSOC);
+$lbl_pay = []; $dat_pay = [];
+foreach($payData as $p) { $lbl_pay[] = $p['payment_method']; $dat_pay[] = $p['jumlah']; }
+
+// --- 4. DATA GRAFIK 3: TOP 5 MENU TERLARIS ---
+$topQuery = $pdo->query("
+    SELECT p.name, SUM(oi.quantity) as terjual 
+    FROM order_items oi 
+    JOIN products p ON oi.product_id = p.id 
+    JOIN orders o ON oi.order_id = o.id
+    WHERE o.order_status != 'Dibatalkan'
+    GROUP BY p.name 
+    ORDER BY terjual DESC 
+    LIMIT 5
+");
+$topData = $topQuery->fetchAll(PDO::FETCH_ASSOC);
+$lbl_top = []; $dat_top = [];
+foreach($topData as $t) { $lbl_top[] = $t['name']; $dat_top[] = $t['terjual']; }
 ?>
-
 <!DOCTYPE html>
 <html lang="id">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Dashboard Admin</title>
+    <title>Dashboard - Admin Mode</title>
+    <link rel="stylesheet" href="../assets/css/style.css">
     <link rel="stylesheet" href="../assets/css/admin.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    
+    <style>
+        .notif-btn {
+            position: relative; cursor: pointer;
+            background: var(--yellow); border: 3px solid black;
+            width: 50px; height: 50px; border-radius: 50%;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 24px; transition: 0.2s;
+            box-shadow: 4px 4px 0 black;
+        }
+        .notif-btn:hover { transform: translate(-2px, -2px); box-shadow: 6px 6px 0 black; }
+        .notif-btn.active { animation: shake 0.5s infinite; background: #ff7675; color: white; }
+
+        .notif-badge {
+            position: absolute; top: -5px; right: -5px;
+            background: red; color: white; border: 2px solid black;
+            width: 25px; height: 25px; border-radius: 50%;
+            font-size: 12px; font-weight: 900;
+            display: flex; align-items: center; justify-content: center;
+            display: none; /* Hidden kalau 0 */
+        }
+
+        .notif-dropdown {
+            display: none; position: absolute;
+            top: 80px; right: 0; width: 320px;
+            background: white; border: 4px solid black;
+            box-shadow: 8px 8px 0 black; z-index: 999;
+        }
+        .notif-dropdown.show { display: block; animation: popUp 0.2s; }
+        
+        .notif-header { background: black; color: white; padding: 10px; font-family: 'Archivo Black'; text-align: center; }
+        .notif-list { max-height: 300px; overflow-y: auto; }
+        .notif-item {
+            padding: 15px; border-bottom: 2px solid black;
+            display: flex; align-items: center; gap: 10px;
+            transition: 0.2s; text-decoration: none; color: black;
+        }
+        .notif-item:hover { background: #f0f0f0; }
+        
+        @keyframes shake {
+            0% { transform: rotate(0deg); } 25% { transform: rotate(15deg); } 
+            50% { transform: rotate(0deg); } 75% { transform: rotate(-15deg); } 100% { transform: rotate(0deg); }
+        }
+        @keyframes popUp { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+    </style>
 </head>
 <body>
-    <div class="admin-wrapper">
-        
-        <nav class="admin-sidebar">
-            <div class="logo-area">
-                <i class="fas fa-utensils"></i>
-                <h2>Warung Bu Yeti</h2>
+
+    <audio id="notifSound" src="https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3"></audio>
+
+    <nav class="admin-sidebar">
+        <div class="admin-logo">    ADMIN MODE</div>
+        <ul class="sidebar-menu">
+            <li><a href="dashboard.php" class="sidebar-link active"><i class="fas fa-fire"></i> DASHBOARD</a></li>
+            <li><a href="products.php" class="sidebar-link"><i class="fas fa-hamburger"></i> PRODUK</a></li>
+            <li><a href="orders.php" class="sidebar-link"><i class="fas fa-receipt"></i> PESANAN</a></li>
+            <li><a href="customer.php" class="sidebar-link"><i class="fas fa-users"></i> PELANGGAN</a></li>
+            <li><a href="reports.php" class="sidebar-link"><i class="fas fa-file-invoice-dollar"></i> LAPORAN</a></li>
+            <li><a href="users.php" class="sidebar-link"><i class="fas fa-user-shield"></i> ADMIN</a></li>
+            <li><a href="logout.php" class="sidebar-link" style="background:#000; color:#fff;"><i class="fas fa-sign-out-alt"></i> KELUAR</a></li>
+        </ul>
+    </nav>
+
+    <main class="main-content">
+        <div class="page-header">
+            <div class="page-title">
+                <h1>DASHBOARD UTAMA</h1>
+                <p>Halo, <?= htmlspecialchars($_SESSION['user']['fullname']) ?>! Pantau bisnismu.</p>
             </div>
-            <ul>
-                <li><a href="dashboard.php" class="active"><i class="fas fa-fire"></i> Dashboard</a></li>
-                <li><a href="products.php"><i class="fas fa-hamburger"></i> Produk</a></li>
-                <li><a href="orders.php"><i class="fas fa-receipt"></i> Pesanan</a></li>
-                <li><a href="customer.php"><i class="fas fa-users"></i> Pelanggan</a></li>
-            </ul>
-            <div style="margin-top: auto; text-align:center; color:#b2bec3; font-size:12px;">&copy; 2024 RestoApp</div>
-        </nav>
-
-        <main>
-            <header class="topbar">
-                <div class="page-header">
-                    <h1>Halo, <?= explode(' ', $_SESSION['user']['fullname'])[0] ?>! 👋</h1>
-                    <p>Berikut ringkasan performa restoran hari ini.</p>
-                </div>
-
-                <div class="header-right">
-                    
-                    <div class="notif-wrapper">
-                        <button class="notif-btn" onclick="toggleNotif()">
-                            <i class="far fa-bell"></i>
-                            <?php if($notifCount > 0): ?>
-                                <span class="notif-badge"><?= $notifCount ?></span>
-                            <?php endif; ?>
-                        </button>
-
-                        <div class="notif-dropdown" id="notifDropdown">
-                            <div class="notif-header">
-                                <span>Notifikasi</span>
-                                <a href="orders.php?status=Menunggu">Lihat Semua</a>
-                            </div>
-                            <div class="notif-list">
-                                <?php if($notifCount > 0): ?>
-                                    <?php foreach($notifItems as $n): ?>
-                                    <a href="orders.php" class="notif-item">
-                                        <div class="notif-icon-circle"><i class="fas fa-shopping-bag"></i></div>
-                                        <div class="notif-text">
-                                            <strong>Pesanan Baru #<?= $n['order_id'] ?></strong>
-                                            <p>Rp <?= number_format($n['total'],0,',','.') ?> - <?= $n['payment_method'] ?></p>
-                                            <small><?= date('H:i', strtotime($n['order_date'])) ?> WIB</small>
-                                        </div>
-                                    </a>
-                                    <?php endforeach; ?>
-                                <?php else: ?>
-                                    <div class="notif-empty">
-                                        <i class="far fa-bell-slash"></i>
-                                        <p>Tidak ada pesanan baru</p>
-                                    </div>
-                                <?php endif; ?>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="profile-card">
-                        <div class="profile-info">
-                            <span class="profile-name"><?= htmlspecialchars($_SESSION['user']['fullname']) ?></span>
-                            <span class="profile-role">ADMIN MANAGER</span>
-                        </div>
-                        <img src="https://api.dicebear.com/7.x/avataaars/svg?seed=<?= urlencode($_SESSION['user']['fullname']) ?>&backgroundColor=c0aede" alt="Profile" class="profile-img">
-                        <a href="logout.php" class="btn-logout-icon" title="Keluar"><i class="fas fa-power-off"></i></a>
-                    </div>
-                </div>
-            </header>
-
-            <section class="stats-grid">
-                <div class="stat-card blue">
-                    <i class="fas fa-wallet bg-icon"></i>
-                    <h3>Total Pendapatan</h3>
-                    <div class="value" style="color:#0984e3">Rp <?= number_format($totalIncome/1000000, 1, ',', '.') ?>Jt</div>
-                    <small style="color:#00b894"><i class="fas fa-arrow-up"></i> +12% bulan ini</small>
-                </div>
-                <div class="stat-card green">
-                    <i class="fas fa-shopping-basket bg-icon"></i>
-                    <h3>Total Pesanan</h3>
-                    <div class="value" style="color:#00b894"><?= $totalOrders ?></div>
-                    <small style="color:#636e72">Transaksi berhasil</small>
-                </div>
-                <div class="stat-card purple">
-                    <i class="fas fa-chart-line bg-icon"></i>
-                    <h3>Rata-rata</h3>
-                    <div class="value" style="color:#6c5ce7">Rp <?= number_format($avgOrder/1000, 0, ',', '.') ?>K</div>
-                    <small style="color:#636e72">Per transaksi</small>
-                </div>
-                <div class="stat-card orange">
-                    <i class="fas fa-user-friends bg-icon"></i>
-                    <h3>Pelanggan</h3>
-                    <div class="value" style="color:#e17055"><?= $totalCustomers ?></div>
-                    <small style="color:#00b894"><i class="fas fa-plus"></i> Aktif</small>
-                </div>
-            </section>
             
-            <div style="background: white; padding: 40px; border-radius: 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.05); height: 400px; display: flex; align-items: center; justify-content: center; flex-direction: column; border: 1px solid rgba(0,0,0,0.02); transition: all 0.4s ease;" onmouseover="this.style.transform='translateY(-5px)'; this.style.boxShadow='0 20px 40px rgba(0,0,0,0.1)'" onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 10px 30px rgba(0,0,0,0.05)'">
-                <i class="fas fa-chart-pie" style="font-size: 80px; color: #dfe6e9; margin-bottom: 20px;"></i>
-                <h3 style="color: #b2bec3; margin:0;">Grafik Penjualan</h3>
+            <div style="display:flex; align-items:center; gap:20px;">
+                <div class="badge badge-yellow" style="font-size:16px;">
+                    <i class="fas fa-calendar-alt"></i> <?= date('d M Y') ?>
+                </div>
+
+                <div style="position:relative;">
+                    <div class="notif-btn" onclick="toggleNotif()">
+                        <i class="fas fa-bell"></i>
+                        <div class="notif-badge" id="notifCount">0</div>
+                    </div>
+
+                    <div class="notif-dropdown" id="notifBox">
+                        <div class="notif-header">PESANAN BARU MASUK!</div>
+                        <div class="notif-list" id="notifList">
+                            <div style="padding:20px; text-align:center;">Memuat...</div>
+                        </div>
+                        <a href="orders.php" style="display:block; background:var(--yellow); padding:10px; text-align:center; font-weight:bold; border-top:3px solid black; color:black;">LIHAT SEMUA</a>
+                    </div>
+                </div>
             </div>
-        </main>
-    </div>
+        </div>
+
+        <div class="stats-grid">
+            <div class="stat-card" style="background: #ff7675;">
+                <i class="fas fa-wallet stat-icon"></i>
+                <div class="stat-label" style="color:white;">TOTAL OMZET</div>
+                <div class="stat-value" style="color:white;">Rp <?= number_format($income/1000000, 1, ',', '.') ?>Jt</div>
+            </div>
+            <div class="stat-card" style="background: #ffeaa7;">
+                <i class="fas fa-shopping-basket stat-icon"></i>
+                <div class="stat-label">TOTAL ORDER</div>
+                <div class="stat-value"><?= $orderCount ?></div>
+            </div>
+            <div class="stat-card" style="background: #74b9ff;">
+                <i class="fas fa-box stat-icon"></i>
+                <div class="stat-label">JUMLAH MENU</div>
+                <div class="stat-value"><?= $productCount ?></div>
+            </div>
+            <div class="stat-card" style="background: #55efc4;">
+                <i class="fas fa-users stat-icon"></i>
+                <div class="stat-label">PELANGGAN</div>
+                <div class="stat-value"><?= $customerCount ?></div>
+            </div>
+        </div>
+
+        <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 30px; margin-bottom: 30px;">
+            <div class="table-container">
+                <h3 style="margin-bottom:15px; font-family:'Archivo Black'; text-transform:uppercase;">GRAFIK OMZET (7 HARI)</h3>
+                <div style="height: 300px;">
+                    <canvas id="salesChart"></canvas>
+                </div>
+            </div>
+
+            <div class="table-container">
+                <h3 style="margin-bottom:15px; font-family:'Archivo Black'; text-transform:uppercase;">METODE BAYAR</h3>
+                <div style="height: 300px; display:flex; justify-content:center;">
+                    <canvas id="payChart"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <div class="table-container">
+            <h3 style="margin-bottom:15px; font-family:'Archivo Black'; text-transform:uppercase;">🔥 5 MENU TERLARIS</h3>
+            <div style="height: 250px;">
+                <canvas id="topMenuChart"></canvas>
+            </div>
+        </div>
+
+    </main>
 
     <script>
-        function toggleNotif() {
-            const dropdown = document.getElementById('notifDropdown');
-            dropdown.classList.toggle('active');
+        // --- LOGIC NOTIFIKASI ---
+        let lastCount = 0;
+        const notifSound = document.getElementById('notifSound');
+
+        function checkNotif() {
+            fetch('get_notif.php')
+                .then(response => response.json())
+                .then(data => {
+                    const count = data.count;
+                    const badge = document.getElementById('notifCount');
+                    const btn = document.querySelector('.notif-btn');
+                    const list = document.getElementById('notifList');
+
+                    // Update Badge
+                    if (count > 0) {
+                        badge.style.display = 'flex';
+                        badge.innerText = count;
+                        btn.classList.add('active');
+                        
+                        if (count > lastCount) {
+                            notifSound.play().catch(e => console.log("Audio perlu interaksi dulu"));
+                        }
+                    } else {
+                        badge.style.display = 'none';
+                        btn.classList.remove('active');
+                    }
+                    lastCount = count;
+
+                    // Update List Dropdown
+                    if (count === 0) {
+                        list.innerHTML = '<div style="padding:20px; text-align:center; color:#777;">Aman, belum ada pesanan baru.</div>';
+                    } else {
+                        let html = '';
+                        data.orders.forEach(o => {
+                            html += `
+                                <a href="orders.php" class="notif-item">
+                                    <div style="background:#ffeaa7; width:40px; height:40px; border-radius:50%; border:2px solid black; display:flex; align-items:center; justify-content:center; font-weight:900;">!</div>
+                                    <div>
+                                        <strong style="display:block;">Order #${o.id} - Rp ${parseInt(o.total).toLocaleString()}</strong>
+                                        <small style="color:#555;">${o.payment_method} • Menunggu Konfirmasi</small>
+                                    </div>
+                                </a>
+                            `;
+                        });
+                        list.innerHTML = html;
+                    }
+                });
         }
 
-        // Tutup dropdown jika klik di luar
-        window.onclick = function(event) {
-            if (!event.target.closest('.notif-wrapper')) {
-                const dropdown = document.getElementById('notifDropdown');
-                if (dropdown.classList.contains('active')) {
-                    dropdown.classList.remove('active');
-                }
-            }
+        function toggleNotif() {
+            document.getElementById('notifBox').classList.toggle('show');
         }
+
+        // Cek setiap 3 detik
+        setInterval(checkNotif, 3000);
+        checkNotif();
+
+        // --- LOGIC GRAFIK ---
+        Chart.defaults.font.family = "'Chakra Petch', sans-serif";
+        Chart.defaults.color = '#000';
+
+        new Chart(document.getElementById('salesChart'), {
+            type: 'bar',
+            data: {
+                labels: <?= json_encode($lbl_sales) ?>,
+                datasets: [{
+                    label: 'Omzet (Rp)',
+                    data: <?= json_encode($dat_sales) ?>,
+                    backgroundColor: '#ff0000',
+                    borderColor: '#000',
+                    borderWidth: 2,
+                    hoverBackgroundColor: '#ffff00'
+                }]
+            },
+            options: { responsive: true, maintainAspectRatio: false }
+        });
+
+        new Chart(document.getElementById('payChart'), {
+            type: 'pie',
+            data: {
+                labels: <?= json_encode($lbl_pay) ?>,
+                datasets: [{
+                    data: <?= json_encode($dat_pay) ?>,
+                    backgroundColor: ['#55efc4', '#74b9ff', '#ffeaa7'],
+                    borderColor: '#000',
+                    borderWidth: 2
+                }]
+            },
+            options: { responsive: true, maintainAspectRatio: false }
+        });
+
+        new Chart(document.getElementById('topMenuChart'), {
+            type: 'bar',
+            data: {
+                labels: <?= json_encode($lbl_top) ?>,
+                datasets: [{
+                    label: 'Terjual (Porsi)',
+                    data: <?= json_encode($dat_top) ?>,
+                    backgroundColor: '#a29bfe',
+                    borderColor: '#000',
+                    borderWidth: 2,
+                    indexAxis: 'y'
+                }]
+            },
+            options: { responsive: true, maintainAspectRatio: false, indexAxis: 'y' }
+        });
     </script>
+
 </body>
 </html>

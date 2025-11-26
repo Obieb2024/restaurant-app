@@ -1,91 +1,160 @@
 <?php
 session_start();
-// Cek Super Admin
-if (!isset($_SESSION['user']) || $_SESSION['user']['role'] !== 'super_admin') {
-    header('Location: dashboard.php'); // Jika admin biasa, lempar ke dashboard
-    exit;
+// Cek Login
+if (!isset($_SESSION['user']) || ($_SESSION['user']['role'] !== 'admin' && $_SESSION['user']['role'] !== 'super_admin')) {
+    header("Location: ../login.php"); exit;
 }
 include '../includes/db.php';
 
-// Approve
-if (isset($_GET['approve'])) {
-    $pdo->prepare("UPDATE users SET status='active' WHERE id=?")->execute([$_GET['approve']]);
-    header("Location: users.php");
-}
-// Reject/Delete
-if (isset($_GET['delete'])) {
-    $pdo->prepare("DELETE FROM users WHERE id=?")->execute([$_GET['delete']]);
-    header("Location: users.php");
+// --- 1. LOGIC UPLOAD QRIS ---
+if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_FILES['qris'])) {
+    if ($_FILES['qris']['error'] == 0) {
+        $target_file = "../assets/img/qris.jpg";
+        if (file_exists($target_file)) unlink($target_file); // Hapus lama
+        
+        if (move_uploaded_file($_FILES['qris']['tmp_name'], $target_file)) {
+            echo "<script>alert('QRIS Berhasil Diupdate!'); window.location='users.php';</script>";
+        } else {
+            echo "<script>alert('Gagal upload gambar.');</script>";
+        }
+    }
 }
 
-$pending = $pdo->query("SELECT * FROM users WHERE role='admin' AND status='pending'")->fetchAll(PDO::FETCH_ASSOC);
-$users = $pdo->query("SELECT * FROM users WHERE role!='super_admin' ORDER BY id DESC")->fetchAll(PDO::FETCH_ASSOC);
+// --- 2. LOGIC KELOLA ADMIN ---
+if (isset($_GET['approve'])) {
+    $pdo->prepare("UPDATE users SET status='active' WHERE id=?")->execute([$_GET['approve']]);
+    header("Location: users.php"); exit;
+}
+if (isset($_GET['delete'])) {
+    $pdo->prepare("DELETE FROM users WHERE id=?")->execute([$_GET['delete']]);
+    header("Location: users.php"); exit;
+}
+
+$admins = $pdo->query("SELECT * FROM users WHERE role IN ('admin', 'super_admin') ORDER BY id DESC")->fetchAll(PDO::FETCH_ASSOC);
 ?>
 <!DOCTYPE html>
 <html lang="id">
 <head>
-    <title>Kelola Pengguna</title>
+    <title>Pengaturan & Admin - Admin Mode</title>
+    <link rel="stylesheet" href="../assets/css/style.css">
     <link rel="stylesheet" href="../assets/css/admin.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        /* CSS KHUSUS FILE INPUT BIAR KEREN */
+        .file-input-wrapper {
+            position: relative; margin-bottom: 15px; text-align: center;
+        }
+        .file-input-real {
+            width: 0.1px; height: 0.1px; opacity: 0; overflow: hidden; position: absolute; z-index: -1;
+        }
+        .file-input-label {
+            display: block; width: 100%; padding: 12px;
+            font-family: 'Archivo Black'; font-size: 14px; cursor: pointer;
+            background: var(--white); color: var(--black);
+            border: 3px solid var(--black);
+            box-shadow: 4px 4px 0 var(--black);
+            transition: 0.2s; text-transform: uppercase;
+        }
+        .file-input-label:hover {
+            background: var(--yellow); transform: translate(-2px, -2px);
+            box-shadow: 6px 6px 0 var(--black);
+        }
+        .qris-preview-box {
+            background: #eee; border: 3px solid var(--black);
+            padding: 10px; margin-bottom: 15px;
+            display: flex; justify-content: center; align-items: center;
+            min-height: 200px;
+        }
+    </style>
 </head>
 <body>
-    <div class="admin-wrapper">
-        <nav class="admin-sidebar">
-            <div class="logo-area"><i class="fas fa-utensils"></i> <h2>Bu Yeti</h2></div>
-            <ul>
-                <li><a href="dashboard.php"><i class="fas fa-fire"></i> Dashboard</a></li>
-                <li><a href="products.php"><i class="fas fa-hamburger"></i> Produk</a></li>
-                <li><a href="orders.php"><i class="fas fa-receipt"></i> Pesanan</a></li>
-                <li><a href="customer.php"><i class="fas fa-users"></i> Pelanggan</a></li>
-                <li><a href="users.php" class="active active-purple"><i class="fas fa-user-shield"></i> Kelola Admin</a></li>
-            </ul>
-        </nav>
+    <nav class="admin-sidebar">
+        <div class="admin-logo">ADMIN MODE</div>
+        <ul class="sidebar-menu">
+            <li><a href="dashboard.php" class="sidebar-link"><i class="fas fa-fire"></i> DASHBOARD</a></li>
+            <li><a href="products.php" class="sidebar-link"><i class="fas fa-hamburger"></i> PRODUK</a></li>
+            <li><a href="orders.php" class="sidebar-link"><i class="fas fa-receipt"></i> PESANAN</a></li>
+            <li><a href="customer.php" class="sidebar-link"><i class="fas fa-users"></i> PELANGGAN</a></li>
+            <li><a href="reports.php" class="sidebar-link"><i class="fas fa-file-invoice-dollar"></i> LAPORAN</a></li>
+            <li><a href="users.php" class="sidebar-link active"><i class="fas fa-user-shield"></i> ADMIN</a></li>
+            <li><a href="logout.php" class="sidebar-link" style="background:#000; color:#fff;"><i class="fas fa-sign-out-alt"></i> KELUAR</a></li>
+        </ul>
+    </nav>
 
-        <main>
-            <div class="topbar">
-                <div class="page-header"><h1>Kelola Pengguna</h1><p>Persetujuan Admin & Data User</p></div>
-            </div>
+    <main class="main-content">
+        <div class="page-header">
+            <div class="page-title"><h1>PENGATURAN & ADMIN</h1></div>
+        </div>
 
-            <?php if(count($pending) > 0): ?>
-            <div style="background:#fff3cd; padding:20px; border-radius:16px; margin-bottom:30px; border:1px solid #ffeeba;">
-                <h3 style="color:#856404; margin-bottom:15px;"><i class="fas fa-exclamation-triangle"></i> Butuh Persetujuan (<?= count($pending) ?>)</h3>
-                <table width="100%">
-                    <?php foreach($pending as $p): ?>
-                    <tr>
-                        <td width="50"><img src="../assets/img/users/<?= $p['photo'] ?>" style="width:40px; height:40px; border-radius:50%; object-fit:cover;"></td>
-                        <td><strong><?= htmlspecialchars($p['fullname']) ?></strong><br><small><?= htmlspecialchars($p['email']) ?></small></td>
-                        <td align="right">
-                            <a href="?approve=<?= $p['id'] ?>" class="btn" style="background:#28a745; color:white;">Setujui</a>
-                            <a href="?delete=<?= $p['id'] ?>" class="btn" style="background:#dc3545; color:white;" onclick="return confirm('Tolak user ini?')">Tolak</a>
-                        </td>
-                    </tr>
-                    <?php endforeach; ?>
-                </table>
-            </div>
-            <?php endif; ?>
-
+        <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 30px; align-items: start;">
+            
             <div class="table-container">
-                <h3>Semua Pengguna</h3>
-                <table width="100%">
-                    <thead><tr><th>Foto</th><th>Nama</th><th>Role</th><th>Status</th><th>Aksi</th></tr></thead>
-                    <tbody>
-                        <?php foreach($users as $u): ?>
+                <h3 style="font-family:'Archivo Black'; border-bottom:4px solid black; padding-bottom:15px; margin-bottom:20px;">TIM ADMIN</h3>
+                <table>
+                    <thead>
                         <tr>
-                            <td><img src="../assets/img/users/<?= $u['photo'] ?>" style="width:40px; height:40px; border-radius:50%; object-fit:cover;" onerror="this.src='https://ui-avatars.com/api/?name=User'"></td>
-                            <td><?= htmlspecialchars($u['fullname']) ?><br><small><?= htmlspecialchars($u['email']) ?></small></td>
+                            <th>NAMA</th>
+                            <th>ROLE</th>
+                            <th>STATUS</th>
+                            <th width="50">AKSI</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <?php foreach($admins as $u): ?>
+                        <tr>
                             <td>
-                                <span style="padding:4px 10px; border-radius:20px; font-size:11px; font-weight:700; background:<?= $u['role']=='admin'?'#e0e7ff':'#d1fae5' ?>; color:<?= $u['role']=='admin'?'#4338ca':'#059669' ?>">
-                                    <?= strtoupper($u['role']) ?>
-                                </span>
+                                <strong><?= htmlspecialchars($u['fullname']) ?></strong><br>
+                                <small><?= htmlspecialchars($u['email']) ?></small>
                             </td>
-                            <td><?= $u['status'] ?></td>
-                            <td><a href="?delete=<?= $u['id'] ?>" style="color:red;" onclick="return confirm('Hapus permanen?')"><i class="fas fa-trash"></i></a></td>
+                            <td><span class="badge badge-yellow"><?= strtoupper($u['role']) ?></span></td>
+                            <td>
+                                <?php if($u['status']=='pending'): ?>
+                                    <div style="display:flex; gap:5px;">
+                                        <span class="badge badge-red">PENDING</span>
+                                        <a href="?approve=<?= $u['id'] ?>" style="background:#00ff00; color:black; padding:3px 8px; border:2px solid black; font-weight:900; font-size:10px; text-decoration:none; box-shadow:2px 2px 0 black;">ACC</a>
+                                    </div>
+                                <?php else: ?>
+                                    <span class="badge badge-green">ACTIVE</span>
+                                <?php endif; ?>
+                            </td>
+                            <td>
+                                <?php if($u['role'] !== 'super_admin'): ?>
+                                    <a href="?delete=<?= $u['id'] ?>" class="btn-action btn-delete" onclick="return confirm('Hapus admin ini?')"><i class="fas fa-trash"></i></a>
+                                <?php endif; ?>
+                            </td>
                         </tr>
                         <?php endforeach; ?>
                     </tbody>
                 </table>
             </div>
-        </main>
-    </div>
+
+            <div class="stat-card">
+                <h3 style="font-family:'Archivo Black'; text-align:center; margin-bottom:20px;">QRIS TOKO</h3>
+                
+                <div class="qris-preview-box">
+                    <img src="../assets/img/qris.jpg?v=<?= time() ?>" 
+                         onerror="this.src='https://via.placeholder.com/300x300?text=QRIS+BELUM+ADA'" 
+                         style="max-width: 100%; height: auto; display: block;">
+                </div>
+                
+                <p style="text-align:center; font-size:12px; font-weight:bold; color:#555; margin-bottom:15px;">
+                    Gambar ini akan muncul di halaman pembayaran customer.
+                </p>
+
+                <form method="POST" enctype="multipart/form-data">
+                    <div class="file-input-wrapper">
+                        <input type="file" name="qris" id="qrisInput" class="file-input-real" required onchange="document.getElementById('labelTxt').innerText = 'GAMBAR DIPILIH!'">
+                        <label for="qrisInput" class="file-input-label">
+                            <i class="fas fa-camera"></i> <span id="labelTxt">PILIH GAMBAR BARU</span>
+                        </label>
+                    </div>
+                    <button type="submit" class="btn-action" style="width:100%; background:var(--red-primary); color:white; padding:12px; font-size:14px;">
+                        <i class="fas fa-upload"></i> UPLOAD SEKARANG
+                    </button>
+                </form>
+            </div>
+
+        </div>
+    </main>
 </body>
 </html>
