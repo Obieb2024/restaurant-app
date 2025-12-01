@@ -1,22 +1,41 @@
 <?php
+ob_start(); // Tambah ini biar header location gak error
 session_start();
 if (!isset($_SESSION['user']) || ($_SESSION['user']['role'] !== 'admin' && $_SESSION['user']['role'] !== 'super_admin')) {
     header("Location: ../login.php"); exit;
 }
 include '../includes/db.php';
 
-// --- LOGIC UPLOAD QRIS ---
-if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_FILES['qris'])) {
-    if ($_FILES['qris']['error'] == 0) {
-        $target_file = "../assets/img/qris.jpg";
-        if (file_exists($target_file)) unlink($target_file);
-        if (move_uploaded_file($_FILES['qris']['tmp_name'], $target_file)) {
-            echo "<script>alert('QRIS Berhasil Diupdate!'); window.location='users.php';</script>";
-        }
+// --- LOGIC FIX ROLE ERROR (YANG TADI MACET) ---
+if (isset($_GET['fix_role'])) {
+    $id = $_GET['fix_role'];
+    
+    // Kita paksa update lewat PHP
+    $sql = "UPDATE users SET role = 'cashier', status = 'active' WHERE id = ?";
+    $stmt = $pdo->prepare($sql);
+    
+    if($stmt->execute([$id])) {
+        header("Location: users.php?msg=fixed"); 
+        exit;
+    } else {
+        // Kalau gagal, tampilkan error DB-nya
+        print_r($stmt->errorInfo()); 
+        die("GAGAL UPDATE DATABASE! Cek Tipe Data Kolom Role.");
     }
 }
 
-// --- LOGIC KELOLA USER ---
+// ... (Sisa kode ke bawah sama seperti sebelumnya) ...
+
+// --- 2. LOGIC BARU: FIX ROLE ERROR ---
+// Ini tombol sakti buat benerin akun yang error
+if (isset($_GET['fix_role'])) {
+    $id = $_GET['fix_role'];
+    // Paksa ubah jadi cashier dan aktif
+    $pdo->prepare("UPDATE users SET role='cashier', status='active' WHERE id=?")->execute([$id]);
+    header("Location: users.php"); exit;
+}
+
+// --- 3. LOGIC ACC / DELETE ---
 if (isset($_GET['approve'])) {
     $pdo->prepare("UPDATE users SET status='active' WHERE id=?")->execute([$_GET['approve']]);
     header("Location: users.php"); exit;
@@ -26,8 +45,8 @@ if (isset($_GET['delete'])) {
     header("Location: users.php"); exit;
 }
 
-// QUERY: Ambil semua user yang BUKAN customer
-$staffs = $pdo->query("SELECT * FROM users WHERE role != 'customer' ORDER BY id DESC")->fetchAll(PDO::FETCH_ASSOC);
+// Ambil semua user kecuali customer
+$staffs = $pdo->query("SELECT * FROM users WHERE role != 'customer' OR role IS NULL OR role = '' ORDER BY id DESC")->fetchAll(PDO::FETCH_ASSOC);
 ?>
 <!DOCTYPE html>
 <html lang="id">
@@ -37,11 +56,20 @@ $staffs = $pdo->query("SELECT * FROM users WHERE role != 'customer' ORDER BY id 
     <link rel="stylesheet" href="../assets/css/admin.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <style>
-        .file-input-wrapper { margin-bottom: 15px; text-align: center; }
-        .file-input-real { display: none; }
+        .file-input-wrapper { position: relative; margin-bottom: 15px; text-align: center; }
+        .file-input-real { width: 0.1px; height: 0.1px; opacity: 0; overflow: hidden; position: absolute; z-index: -1; }
         .file-input-label { display: block; width: 100%; padding: 12px; font-family: 'Archivo Black'; font-size: 14px; cursor: pointer; background: var(--white); color: var(--black); border: 3px solid var(--black); box-shadow: 4px 4px 0 var(--black); transition: 0.2s; text-transform: uppercase; }
         .file-input-label:hover { background: var(--yellow); transform: translate(-2px, -2px); box-shadow: 6px 6px 0 var(--black); }
         .qris-preview-box { background: #eee; border: 3px solid var(--black); padding: 10px; margin-bottom: 15px; display: flex; justify-content: center; align-items: center; min-height: 200px; }
+        
+        /* TOMBOL FIX KHUSUS */
+        .btn-fix {
+            background: var(--black); color: white; padding: 5px 10px; 
+            font-weight: 900; font-size: 11px; text-decoration: none;
+            display: inline-flex; align-items: center; gap: 5px;
+            animation: blink 1s infinite;
+        }
+        @keyframes blink { 50% { opacity: 0.8; } }
     </style>
 </head>
 <body>
@@ -53,7 +81,7 @@ $staffs = $pdo->query("SELECT * FROM users WHERE role != 'customer' ORDER BY id 
             <li><a href="orders.php" class="sidebar-link"><i class="fas fa-receipt"></i> PESANAN</a></li>
             <li><a href="customer.php" class="sidebar-link"><i class="fas fa-users"></i> PELANGGAN</a></li>
             <li><a href="reports.php" class="sidebar-link"><i class="fas fa-file-invoice-dollar"></i> LAPORAN</a></li>
-            <li><a href="users.php" class="sidebar-link active"><i class="fas fa-user-shield"></i> ADMIN</a></li>
+            <li><a href="users.php" class="sidebar-link active"><i class="fas fa-user-shield"></i> ADMIN & STAFF</a></li>
             <li><a href="logout.php" class="sidebar-link" style="background:#000; color:#fff;"><i class="fas fa-sign-out-alt"></i> KELUAR</a></li>
         </ul>
     </nav>
@@ -79,19 +107,20 @@ $staffs = $pdo->query("SELECT * FROM users WHERE role != 'customer' ORDER BY id 
                                 </td>
                                 <td>
                                     <?php 
-                                        // --- LOGIKA BADGE DIPERKUAT ---
                                         $role = strtolower(trim($u['role']));
                                         
-                                        $bg = 'badge-yellow';
-                                        $label = 'ADMIN'; // Default jika error
-
-                                        if($role == 'super_admin') { $bg = 'badge-red'; $label = 'OWNER'; }
-                                        else if($role == 'admin') { $bg = 'badge-yellow'; $label = 'ADMIN'; }
-                                        else if($role == 'cashier') { $bg = 'badge-green'; $label = 'KASIR'; }
-                                        // JURUS PENYELAMAT: Jika kosong/aneh, anggap Kasir
-                                        else if(empty($role) || $role == '') { $bg = 'badge-green'; $label = 'KASIR'; }
+                                        if($role == 'super_admin') { 
+                                            echo '<span class="badge badge-red">OWNER</span>';
+                                        } elseif ($role == 'admin') { 
+                                            echo '<span class="badge badge-yellow">ADMIN</span>';
+                                        } elseif ($role == 'cashier') { 
+                                            echo '<span class="badge badge-green">KASIR</span>';
+                                        } else {
+                                            // JIKA ERROR, TAMPILKAN TOMBOL FIX
+                                            echo '<span class="badge badge-red" style="margin-bottom:5px; display:inline-block;">⚠️ ERROR</span><br>';
+                                            echo '<a href="?fix_role='.$u['id'].'" class="btn-fix"><i class="fas fa-wrench"></i> KLIK UNTUK PERBAIKI</a>';
+                                        }
                                     ?>
-                                    <span class="badge <?= $bg ?>"><?= $label ?></span>
                                 </td>
                                 <td>
                                     <?php if($u['status']=='pending'): ?>
@@ -105,7 +134,7 @@ $staffs = $pdo->query("SELECT * FROM users WHERE role != 'customer' ORDER BY id 
                                 </td>
                                 <td>
                                     <?php if($u['role'] !== 'super_admin'): ?>
-                                        <a href="?delete=<?= $u['id'] ?>" class="btn-action btn-delete" onclick="return confirm('Hapus staff ini?')"><i class="fas fa-trash"></i></a>
+                                        <a href="?delete=<?= $u['id'] ?>" class="btn-action btn-delete" onclick="return confirm('Hapus user ini?')"><i class="fas fa-trash"></i></a>
                                     <?php endif; ?>
                                 </td>
                             </tr>
@@ -120,7 +149,7 @@ $staffs = $pdo->query("SELECT * FROM users WHERE role != 'customer' ORDER BY id 
                 <div class="qris-preview-box">
                     <img src="../assets/img/qris.jpg?v=<?= time() ?>" onerror="this.src='https://via.placeholder.com/300x300?text=QRIS+BELUM+ADA'" style="max-width: 100%; height: auto; display: block;">
                 </div>
-                <p style="text-align:center; font-size:12px; font-weight:bold; color:#555; margin-bottom:15px;">Akan muncul di halaman bayar customer.</p>
+                <p style="text-align:center; font-size:12px; font-weight:bold; color:#555; margin-bottom:15px;">Gambar ini akan muncul di halaman pembayaran customer.</p>
                 <form method="POST" enctype="multipart/form-data">
                     <div class="file-input-wrapper">
                         <input type="file" name="qris" id="qrisInput" class="file-input-real" required onchange="document.getElementById('labelTxt').innerText = 'GAMBAR DIPILIH!'">

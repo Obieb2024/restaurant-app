@@ -1,12 +1,16 @@
 <?php
 session_start();
-if (!isset($_SESSION['user']) || $_SESSION['user']['role'] !== 'cashier') { header('Location: ../login.php'); exit; }
+// PENGAMAN: Cek Role Kasir (Admin/Super Admin juga boleh intip sih kalau mau)
+if (!isset($_SESSION['user']) || ($_SESSION['user']['role'] !== 'cashier' && $_SESSION['user']['role'] !== 'admin' && $_SESSION['user']['role'] !== 'super_admin')) { 
+    header('Location: ../login.php'); exit; 
+}
+
 include '../includes/db.php';
 include '../includes/Cashier.php';
 
 $cashier = new Cashier($pdo);
 
-// UPDATE STATUS VIA CLASS
+// UPDATE STATUS
 if (isset($_POST['update_status'])) {
     $cashier->updateStatus($_POST['order_id'], $_POST['status']);
     header("Location: orders.php"); exit;
@@ -22,11 +26,27 @@ $orders = $cashier->getAllOrders();
     <link rel="stylesheet" href="../assets/css/admin.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <style>
+        /* Override Sidebar Kasir (Hijau) */
         .admin-sidebar { border-right: 4px solid var(--black); background: #f0fdf4; }
-        .admin-logo { background: #25D366; color: black; }
+        .admin-logo { background: #25D366; color: black; box-shadow: 4px 4px 0 black; }
         .sidebar-link:hover { background: #bbf7d0; }
         .sidebar-link.active { background: var(--black); color: #25D366; }
-        .status-select { border: 3px solid black; padding: 8px; font-weight: 900; cursor: pointer; outline: none; }
+        
+        .status-select { 
+            border: 3px solid black; padding: 8px; font-weight: 900; cursor: pointer; outline: none; 
+            font-family: 'Chakra Petch'; margin-right: 5px;
+        }
+        
+        /* Tombol Print Keren */
+        .btn-print {
+            background: black; color: white; border: 3px solid black;
+            padding: 8px 12px; font-size: 16px; cursor: pointer;
+            text-decoration: none; display: inline-flex; align-items: center;
+            transition: 0.2s;
+        }
+        .btn-print:hover {
+            background: white; color: black; transform: scale(1.1);
+        }
     </style>
 </head>
 <body>
@@ -52,7 +72,7 @@ $orders = $cashier->getAllOrders();
                         <th>Pelanggan & Kontak</th>
                         <th>Total & Metode</th>
                         <th>Status Saat Ini</th>
-                        <th>Aksi (Update)</th>
+                        <th width="250">Aksi & Cetak</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -65,7 +85,7 @@ $orders = $cashier->getAllOrders();
                                 <i class="fab fa-whatsapp"></i> Hubungi
                             </a>
                             <?php if(!empty($o['address'])): ?>
-                                <div style="font-size:11px; margin-top:5px; border:1px solid black; padding:3px;"><i class="fas fa-map-marker-alt"></i> <?= $o['address'] ?></div>
+                                <div style="font-size:11px; margin-top:5px; border:1px solid black; padding:3px; background:white;"><i class="fas fa-map-marker-alt"></i> <?= $o['address'] ?></div>
                             <?php endif; ?>
                         </td>
                         <td>
@@ -73,22 +93,28 @@ $orders = $cashier->getAllOrders();
                             <span class="badge badge-yellow"><?= $o['payment_method'] ?></span>
                         </td>
                         <td>
-                            <span class="badge <?= $o['order_status']=='Selesai'?'badge-green':'badge-red' ?>" style="background:var(--white); color:black;">
+                            <span class="badge <?= $o['order_status']=='Selesai'?'badge-green':'badge-red' ?>" style="background:var(--white); color:black; border:2px solid black;">
                                 <?= strtoupper($o['order_status']) ?>
                             </span>
                         </td>
                         <td>
-                            <form method="POST">
-                                <input type="hidden" name="update_status" value="1">
-                                <input type="hidden" name="order_id" value="<?= $o['id'] ?>">
-                                <select name="status" class="status-select" onchange="this.form.submit()">
-                                    <option value="Menunggu" <?= $o['order_status']=='Menunggu'?'selected':'' ?>>⏳ Menunggu</option>
-                                    <option value="Konfirmasi" <?= $o['order_status']=='Konfirmasi'?'selected':'' ?>>👍 Konfirmasi</option>
-                                    <option value="Diproses" <?= $o['order_status']=='Diproses'?'selected':'' ?>>🔥 Masak</option>
-                                    <option value="Selesai" <?= $o['order_status']=='Selesai'?'selected':'' ?>>✅ Selesai</option>
-                                    <option value="Dibatalkan" <?= $o['order_status']=='Dibatalkan'?'selected':'' ?>>❌ Batal</option>
-                                </select>
-                            </form>
+                            <div style="display:flex; align-items:center;">
+                                <form method="POST" style="display:inline;">
+                                    <input type="hidden" name="update_status" value="1">
+                                    <input type="hidden" name="order_id" value="<?= $o['id'] ?>">
+                                    <select name="status" class="status-select" onchange="this.form.submit()">
+                                        <option value="Menunggu" <?= $o['order_status']=='Menunggu'?'selected':'' ?>>⏳ Wait</option>
+                                        <option value="Konfirmasi" <?= $o['order_status']=='Konfirmasi'?'selected':'' ?>>👍 Confirm</option>
+                                        <option value="Diproses" <?= $o['order_status']=='Diproses'?'selected':'' ?>>🔥 Cook</option>
+                                        <option value="Selesai" <?= $o['order_status']=='Selesai'?'selected':'' ?>>✅ Done</option>
+                                        <option value="Dibatalkan" <?= $o['order_status']=='Dibatalkan'?'selected':'' ?>>❌ Cancel</option>
+                                    </select>
+                                </form>
+
+                                <a href="print_struk.php?id=<?= $o['id'] ?>" target="_blank" class="btn-print" title="Cetak Struk">
+                                    <i class="fas fa-print"></i>
+                                </a>
+                            </div>
                         </td>
                     </tr>
                     <?php endforeach; ?>
