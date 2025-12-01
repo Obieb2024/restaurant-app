@@ -1,241 +1,190 @@
 <?php
-session_start();
+// PENGAMAN SESSION
+if (session_status() == PHP_SESSION_NONE) { session_start(); }
 include 'includes/db.php';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $email = $_POST['email'];
     $pass = $_POST['password'];
-
-    // Cek user di database
     $stmt = $pdo->prepare("SELECT * FROM users WHERE email = ?");
     $stmt->execute([$email]);
     $user = $stmt->fetch(PDO::FETCH_ASSOC);
 
-    // Verifikasi password (sederhana tanpa hash untuk sementara)
     if ($user && $pass === $user['password']) {
         if ($user['status'] === 'pending') {
-            $error = "Sabar ya! Akun kamu masih diverifikasi admin.";
+            $error = "AKUN SEDANG DITINJAU ADMIN!";
         } else {
             $_SESSION['user'] = $user;
             $role = strtolower(trim($user['role']));
-
-            // LOGIKA REDIRECT (Sudah diperbaiki path-nya)
-            if ($role == 'super_admin' || $role == 'admin') {
-                header("Location: admin/dashboard.php"); 
-            } else {
-                header("Location: customer/menu.php");
-            }
+            if ($role == 'super_admin' || $role == 'admin') { header("Location: admin/dashboard.php"); } 
+            elseif ($role == 'cashier') { header("Location: cashier/dashboard.php"); } 
+            else { header("Location: customer/menu.php"); }
             exit;
         }
     } else {
-        $error = "Waduh! Email atau password salah nih.";
+        $error = "EMAIL ATAU PASSWORD SALAH!";
     }
 }
 ?>
 <!DOCTYPE html>
 <html lang="id">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Masuk - Warung Bu Yeti</title>
-    <link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;700;900&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
-    
+    <link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@400;700&family=Archivo+Black&display=swap" rel="stylesheet">
     <style>
-        /* --- STYLE NEO-BRUTALISM (Sama persis dengan Register biar kompak) --- */
         :root {
-            --bg-color: #FFFDF2;       /* Cream Paper */
-            --primary: #8B5CF6;        /* Ungu */
-            --secondary: #FF4757;      /* Merah */
-            --accent: #FFD43B;         /* Kuning */
-            --dark: #1E272E;           /* Hitam Tinta */
-            --white: #FFFFFF;
-            --border-thick: 3px solid var(--dark);
-            --shadow-hard: 8px 8px 0px var(--dark);
+            --black: #000000;
+            --white: #ffffff;
+            --yellow: #ffeb3b;
+            --red: #ff0055;
+            --blue: #00ccff;
+        }
+        
+        body {
+            font-family: 'Chakra Petch', sans-serif;
+            margin: 0; padding: 0;
+            min-height: 100vh;
+            display: flex; align-items: center; justify-content: center;
+            /* BACKGROUND GERAK WARNA-WARNI */
+            background: linear-gradient(-45deg, #ff0055, #ffeb3b, #00ccff, #ff9900);
+            background-size: 400% 400%;
+            animation: gradientBG 10s ease infinite;
         }
 
-        * { margin: 0; padding: 0; box-sizing: border-box; }
+        @keyframes gradientBG {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
 
-        body {
-            font-family: 'Public Sans', sans-serif;
-            background-color: var(--primary); /* Background beda dikit biar variasi */
-            /* Pola titik-titik retro */
-            background-image: radial-gradient(rgba(255,255,255,0.3) 1px, transparent 1px);
-            background-size: 20px 20px;
-            min-height: 100vh;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            padding: 20px;
+        /* ANIMASI KARTU MUNCUL */
+        @keyframes popIn {
+            0% { opacity: 0; transform: scale(0.5) translateY(50px); }
+            100% { opacity: 1; transform: scale(1) translateY(0); }
         }
 
         .auth-card {
             background: var(--white);
-            width: 100%;
-            max-width: 450px;
+            width: 100%; max-width: 420px;
             padding: 40px;
-            border: var(--border-thick);
-            border-radius: 16px;
-            box-shadow: 12px 12px 0px rgba(0,0,0,0.2);
+            border: 5px solid var(--black);
+            /* BAYANGAN KERAS BERWARNA */
+            box-shadow: 15px 15px 0 rgba(0,0,0,0.8);
             position: relative;
-            animation: slideUp 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            animation: popIn 0.6s cubic-bezier(0.68, -0.55, 0.27, 1.55) forwards;
+            border-radius: 20px;
+            overflow: hidden;
         }
 
-        @keyframes slideUp {
-            from { transform: translateY(50px); opacity: 0; }
-            to { transform: translateY(0); opacity: 1; }
+        /* DEKORASI ATAS */
+        .card-header-deco {
+            height: 15px; background: repeating-linear-gradient(45deg, var(--black), var(--black) 10px, var(--yellow) 10px, var(--yellow) 20px);
+            border-bottom: 4px solid var(--black);
+            margin: -40px -40px 30px -40px;
         }
 
-        /* Logo Dekorasi */
-        .logo-badge {
-            display: inline-block;
-            background: var(--accent);
-            color: var(--dark);
-            font-weight: 900;
-            font-size: 24px;
-            padding: 5px 15px;
-            border: var(--border-thick);
-            transform: rotate(-3deg);
-            margin-bottom: 20px;
-            box-shadow: 4px 4px 0 var(--dark);
+        .brand-title {
+            font-family: 'Archivo Black'; font-size: 42px;
+            color: var(--black); text-transform: uppercase;
+            margin: 0; line-height: 0.9; text-align: center;
+            text-shadow: 3px 3px 0 var(--yellow);
+        }
+        .brand-subtitle {
+            text-align: center; font-weight: 900; color: #555; margin: 10px 0 30px 0;
+            letter-spacing: 1px; font-size: 12px;
         }
 
-        .card-header { text-align: center; margin-bottom: 30px; }
-        .card-header h2 { font-weight: 900; font-size: 28px; color: var(--dark); margin-bottom: 5px; }
-        .card-header p { color: #666; font-weight: 600; }
-
-        /* Form Elements */
-        .form-group { margin-bottom: 25px; }
-        .input-label {
-            display: block;
-            font-weight: 800;
-            margin-bottom: 10px;
-            font-size: 14px;
-            text-transform: uppercase;
-            color: var(--dark);
-        }
+        .form-group { margin-bottom: 20px; position: relative; }
         
+        .form-label {
+            font-weight: 900; font-size: 14px;
+            display: block; margin-bottom: 8px; color: var(--black);
+            text-transform: uppercase;
+        }
+
         .form-input {
-            width: 100%;
-            padding: 15px;
-            background: #fff;
-            border: 3px solid var(--dark);
-            border-radius: 8px;
-            font-size: 16px;
-            font-family: inherit;
-            font-weight: 700;
-            outline: none;
-            transition: 0.2s;
-            box-shadow: 4px 4px 0 rgba(0,0,0,0.1);
+            width: 100%; padding: 15px; border: 3px solid var(--black);
+            font-family: 'Chakra Petch'; font-weight: bold; font-size: 16px;
+            outline: none; background: #f0f0f0; border-radius: 10px;
+            transition: 0.3s; box-sizing: border-box;
         }
-
         .form-input:focus {
-            border-color: var(--secondary);
-            box-shadow: 4px 4px 0 var(--secondary);
-            transform: translate(-2px, -2px);
+            background: var(--white);
+            border-color: var(--red);
+            box-shadow: 0 0 15px rgba(255,0,85,0.3);
+            transform: scale(1.02);
         }
 
-        /* Tombol Keren */
-        .btn-submit {
-            width: 100%;
-            padding: 16px;
-            background: var(--dark); /* Tombol Hitam */
-            color: white;
-            border: 3px solid var(--dark);
-            border-radius: 8px;
-            font-weight: 900;
-            font-size: 16px;
-            text-transform: uppercase;
-            cursor: pointer;
-            box-shadow: 5px 5px 0 rgba(255,255,255,0.5);
-            transition: all 0.2s;
+        /* TOMBOL GOYANG */
+        .btn-auth {
+            width: 100%; padding: 15px;
+            background: var(--black); color: var(--white);
+            font-family: 'Archivo Black'; font-size: 20px; text-transform: uppercase;
+            border: 3px solid var(--black); cursor: pointer;
+            border-radius: 10px; transition: 0.2s;
+            position: relative; top: 0;
         }
-
-        .btn-submit:hover {
-            transform: translate(-3px, -3px);
-            box-shadow: 8px 8px 0 rgba(255,255,255,0.5);
-            background: #333;
+        .btn-auth:hover {
+            background: var(--red);
+            color: var(--yellow);
+            top: -3px;
+            box-shadow: 0 10px 0 var(--black);
+        }
+        .btn-auth:active {
+            top: 2px; box-shadow: 0 2px 0 var(--black);
         }
         
-        .btn-submit:active {
-            transform: translate(2px, 2px);
-            box-shadow: 2px 2px 0 rgba(255,255,255,0.5);
+        .alert-box {
+            background: #ffcccc; border: 3px solid var(--black);
+            color: var(--red); padding: 12px; border-radius: 8px;
+            font-weight: 900; margin-bottom: 20px; text-align: center;
+            animation: shake 0.5s;
         }
-
-        /* Alert Box */
-        .alert {
-            padding: 15px;
-            border: 3px solid var(--dark);
-            border-radius: 8px;
-            margin-bottom: 25px;
-            font-weight: bold;
-            box-shadow: 4px 4px 0 var(--dark);
-        }
-        .alert-error { background: #ff7675; color: white; }
-        .alert-success { background: #55efc4; color: var(--dark); }
-
-        .footer-link {
-            text-align: center;
-            margin-top: 30px;
-            font-weight: 700;
-            padding-top: 20px;
-            border-top: 2px dashed #ccc;
-        }
-        .footer-link a {
-            color: var(--secondary);
-            text-decoration: none;
-            position: relative;
-        }
-        .footer-link a:hover { text-decoration: underline; text-decoration-thickness: 3px; }
-        
-        .home-link {
-            display: inline-block;
-            margin-top: 15px;
-            font-size: 13px;
-            color: #888;
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            25% { transform: translateX(-5px); }
+            75% { transform: translateX(5px); }
         }
     </style>
 </head>
 <body>
 
     <div class="auth-card">
-        <div style="text-align:center;">
-            <div class="logo-badge">BU YETI</div>
-        </div>
-        
-        <div class="card-header">
-            <h2>Welcome Back! 👋</h2>
-            <p>Lapar? Login dulu yuk.</p>
-        </div>
+        <div class="card-header-deco"></div>
+
+        <h1 class="brand-title">WARUNG<br><span style="color:var(--red);">BU YETI</span></h1>
+        <p class="brand-subtitle">LOGIN DULU BIAR KENYANG</p>
 
         <?php if(isset($error)): ?>
-            <div class="alert alert-error"><i class="fas fa-exclamation-triangle"></i> <?= $error ?></div>
+            <div class="alert-box"><i class="fas fa-bomb"></i> <?= $error ?></div>
         <?php endif; ?>
         
         <?php if(isset($_SESSION['success'])): ?>
-            <div class="alert alert-success"><i class="fas fa-check-circle"></i> <?= $_SESSION['success']; unset($_SESSION['success']); ?></div>
+            <div class="alert-box" style="background:#ccffcc; color:green;">
+                <i class="fas fa-check-circle"></i> <?= $_SESSION['success']; unset($_SESSION['success']); ?>
+            </div>
         <?php endif; ?>
 
         <form method="POST">
             <div class="form-group">
-                <label class="input-label">Email Address</label>
-                <input type="email" name="email" class="form-input" placeholder="kamu@email.com" required>
+                <label class="form-label">EMAIL KAMU</label>
+                <input type="email" name="email" class="form-input" placeholder="contoh@email.com" required>
             </div>
 
             <div class="form-group">
-                <label class="input-label">Password</label>
-                <input type="password" name="password" class="form-input" placeholder="••••••••" required>
+                <label class="form-label">PASSWORD</label>
+                <input type="password" name="password" class="form-input" placeholder="******" required>
             </div>
 
-            <button type="submit" class="btn-submit">
-                MASUK SEKARANG <i class="fas fa-arrow-right" style="margin-left:5px;"></i>
-            </button>
+            <button type="submit" class="btn-auth">GAS MASUK 🚀</button>
         </form>
 
-        <div class="footer-link">
-            Belum punya akun? <a href="register.php">Daftar Disini</a>
-            <br>
-            <a href="index.php" class="home-link">&larr; Kembali ke Beranda</a>
+        <div style="text-align:center; margin-top:30px; border-top:2px dashed #ccc; padding-top:20px;">
+            <span style="font-weight:bold; font-size:14px;">Belum punya akun?</span>
+            <a href="register.php" style="color:var(--blue); font-weight:900; text-decoration:none; border-bottom:3px solid var(--blue);">DAFTAR SEKARANG</a>
+            <br><br>
+            <a href="index.php" style="font-size:12px; font-weight:bold; text-decoration:none; color:var(--black); opacity:0.6;"><i class="fas fa-arrow-left"></i> KEMBALI KE BERANDA</a>
         </div>
     </div>
 
