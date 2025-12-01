@@ -10,14 +10,14 @@ $customers = $pdo->query("SELECT * FROM users WHERE role='customer' ORDER BY id 
 <!DOCTYPE html>
 <html lang="id">
 <head>
-    <title>Pelanggan - Admin Mode</title>
+    <title>Pelanggan - Admin</title>
     <link rel="stylesheet" href="../assets/css/style.css">
     <link rel="stylesheet" href="../assets/css/admin.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
 </head>
 <body>
     <nav class="admin-sidebar">
-        <div class="admin-logo">ADMIN MODE</div>
+        <div class="admin-logo">ADMIN</div>
         <ul class="sidebar-menu">
             <li><a href="dashboard.php" class="sidebar-link"><i class="fas fa-fire"></i> DASHBOARD</a></li>
             <li><a href="products.php" class="sidebar-link"><i class="fas fa-hamburger"></i> PRODUK</a></li>

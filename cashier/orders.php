@@ -55,7 +55,7 @@ $orders = $cashier->getAllOrders();
         <ul class="sidebar-menu">
             <li><a href="dashboard.php" class="sidebar-link"><i class="fas fa-home"></i> BERANDA</a></li>
             <li><a href="orders.php" class="sidebar-link active"><i class="fas fa-cash-register"></i> TRANSAKSI</a></li>
-            <li><a href="../admin/logout.php" class="sidebar-link" style="background:#ff7675; color:white; margin-top:50px;"><i class="fas fa-sign-out-alt"></i> LOGOUT</a></li>
+            <li><a href="../admin/logout.php" class="sidebar-link" style="background:#ff7675; color:white; margin-top:50px;"><i class="fas fa-sign-out-alt"></i> KELUAR</a></li>
         </ul>
     </nav>
 

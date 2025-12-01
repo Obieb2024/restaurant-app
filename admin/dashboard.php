@@ -51,7 +51,7 @@ foreach($topData as $t) { $lbl_top[] = $t['name']; $dat_top[] = $t['terjual']; }
 <!DOCTYPE html>
 <html lang="id">
 <head>
-    <title>Dashboard - Admin Mode</title>
+    <title>Dashboard - Admin</title>
     <link rel="stylesheet" href="../assets/css/style.css">
     <link rel="stylesheet" href="../assets/css/admin.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
@@ -107,7 +107,7 @@ foreach($topData as $t) { $lbl_top[] = $t['name']; $dat_top[] = $t['terjual']; }
     <audio id="notifSound" src="https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3"></audio>
 
     <nav class="admin-sidebar">
-        <div class="admin-logo">    ADMIN MODE</div>
+        <div class="admin-logo">    ADMIN</div>
         <ul class="sidebar-menu">
             <li><a href="dashboard.php" class="sidebar-link active"><i class="fas fa-fire"></i> DASHBOARD</a></li>
             <li><a href="products.php" class="sidebar-link"><i class="fas fa-hamburger"></i> PRODUK</a></li>

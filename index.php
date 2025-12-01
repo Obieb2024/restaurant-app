@@ -124,7 +124,7 @@ $products = $pdo->query("SELECT * FROM products ORDER BY id DESC LIMIT 3")->fetc
                 <a href="#" style="font-size:24px; color:var(--yellow);"><i class="fab fa-whatsapp"></i></a>
             </div>
 
-            <p style="font-weight:bold;">&copy; 2025 RestoApp System • All Rights Reserved.</p>
+            <p style="font-weight:bold;">&copy; 2025 Kelompok 6 - Information System 2b • All Rights Reserved.</p>
         </div>
     </footer>
 

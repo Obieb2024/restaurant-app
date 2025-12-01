@@ -28,7 +28,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
 </head>
 <body>
     <aside class="sidebar">
-        <div class="brand"><h2>BU YETI</h2><span>CUSTOMER ZONE</span></div>
+        <div class="brand"><h2>CUSTOMER</h2><span></span></div>
         <nav class="nav-menu">
             <a href="menu.php" class="nav-link"><i class="fas fa-utensils"></i> MENU KAMI</a>
             <a href="cart.php" class="nav-link"><i class="fas fa-shopping-cart"></i> KERANJANG</a>

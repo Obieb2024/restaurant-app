@@ -51,7 +51,7 @@ $staffs = $pdo->query("SELECT * FROM users WHERE role != 'customer' OR role IS N
 <!DOCTYPE html>
 <html lang="id">
 <head>
-    <title>Pengaturan & Tim - Boss Mode</title>
+    <title>Pengaturan & Tim - Admin Mode</title>
     <link rel="stylesheet" href="../assets/css/style.css">
     <link rel="stylesheet" href="../assets/css/admin.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
@@ -74,14 +74,14 @@ $staffs = $pdo->query("SELECT * FROM users WHERE role != 'customer' OR role IS N
 </head>
 <body>
     <nav class="admin-sidebar">
-        <div class="admin-logo">BOSS MODE</div>
+        <div class="admin-logo">ADMIN</div>
         <ul class="sidebar-menu">
             <li><a href="dashboard.php" class="sidebar-link"><i class="fas fa-fire"></i> DASHBOARD</a></li>
             <li><a href="products.php" class="sidebar-link"><i class="fas fa-hamburger"></i> PRODUK</a></li>
             <li><a href="orders.php" class="sidebar-link"><i class="fas fa-receipt"></i> PESANAN</a></li>
             <li><a href="customer.php" class="sidebar-link"><i class="fas fa-users"></i> PELANGGAN</a></li>
             <li><a href="reports.php" class="sidebar-link"><i class="fas fa-file-invoice-dollar"></i> LAPORAN</a></li>
-            <li><a href="users.php" class="sidebar-link active"><i class="fas fa-user-shield"></i> ADMIN & STAFF</a></li>
+            <li><a href="users.php" class="sidebar-link active"><i class="fas fa-user-shield"></i> ADMIN</a></li>
             <li><a href="logout.php" class="sidebar-link" style="background:#000; color:#fff;"><i class="fas fa-sign-out-alt"></i> KELUAR</a></li>
         </ul>
     </nav>

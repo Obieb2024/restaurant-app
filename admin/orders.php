@@ -80,7 +80,7 @@ $orders = $pdo->query($sql)->fetchAll(PDO::FETCH_ASSOC);
 </head>
 <body>
     <nav class="admin-sidebar">
-        <div class="admin-logo">ADMIN MODE</div>
+        <div class="admin-logo">ADMIN</div>
         <ul class="sidebar-menu">
             <li><a href="dashboard.php" class="sidebar-link"><i class="fas fa-fire"></i> DASHBOARD</a></li>
             <li><a href="products.php" class="sidebar-link"><i class="fas fa-hamburger"></i> PRODUK</a></li>
